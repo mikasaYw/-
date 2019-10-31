@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html style="height: 100%">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>综合展厅</title>
+    <link href="https://cdn.bootcss.com/element-ui/2.12.0/theme-chalk/index.css" rel="stylesheet">
+</head>
+<style>
+    .BMap_cpyCtrl {
+        display: none;
+    }
+    .anchorBL {
+        display: none;
+    }
+    #container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+    [v-cloak]{
+        display: none;
+    }
+    .piece {
+        position: absolute;
+        right: 20px;
+        top: 20px;
+    }
+</style>
+<body style="height: 100%; margin: 0; position: relative;">
+    <section id="app">
+        <div ref="container" id="container" style="height: 100%;"></div>
+        <section class="piece">
+            <section>
+                <el-select clearable class="el-sel" v-model="city" placeholder="请选择城市" @change="changeCity">
+                    <el-option
+                        v-for="item in options1"
+                        :key="item.label"
+                        :label="item.label"
+                        :value="item.label">
+                    </el-option>
+                </el-select>
+            </section>
+            <section style="margin-top: 10px">
+                <el-select clearable class="el-sel" v-model="brand" placeholder="请选择车型" @change="changeBrand">
+                    <el-option
+                        v-for="item in options2"
+                        :key="item.label"
+                        :label="item.label"
+                        :value="item.label">
+                    </el-option>
+                </el-select>
+            </section>
+            <section style="margin-top: 10px;text-align: right">
+                <el-button size="small" plain v-cloak @click="onNormal">正常比例</el-button>
+                <el-button size="small" plain v-cloak @click="onReset">重置</el-button>
+            </section>
+        </section>
+    </section>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts-gl/dist/echarts-gl.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts-stat/dist/ecStat.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/extension/dataTool.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/map/js/china.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/map/js/world.js"></script> -->
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=2.0&ak=tM547z9IiOp4KiBfRpP5NxETmNtG8zuV"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/extension/bmap.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bootcss.com/vue/2.6.10/vue.min.js"></script>
+    <script src="https://cdn.bootcss.com/element-ui/2.12.0/index.js"></script>
+    <script type="text/javascript">
+
+
+        const vue = new Vue({
+            el: '#app',
+            data: {
+                city: '', // 当前城市
+                brand: '', // 当前车型
+                // city
+                options1: [
+                    { label: '北京' },
+                    { label: '武汉' },
+                ],
+                // brand
+                options2: [
+                    { label: '路虎' },
+                    { label: '丰田' },
+                    { label: '保时捷' },
+                ],
+                dom: '',
+                myChart: '', // 当前echarts对象
+                option: {
+                    title: {
+                        text: '综合展厅',
+                        left: 'center'
+                    },
+                    tooltip : {
+                        trigger: 'item',
+                        formatter: function(params) {
+                            console.log(params)
+                            let html = `<div>${params.name}<span style="font-size: 12px;color: #ccc">(合计：${params.value[2]}辆)</span></div>`;
+                            if (params.data.temp && params.data.temp.length > 0) {
+                                params.data.temp.map(item => {
+                                    html += `<div style="margin-left: 10px">${params.marker}${item.brand}：${item.count}辆</div>`
+                                })
+                            } else {
+                                html += `<div style="margin-left: 10px">${params.marker}暂无此车</div>`
+                            }
+                            return html
+                        }
+                    },
+                    bmap: {
+                        center: [104.114129, 37.550339],
+                        zoom: 5,
+                        roam: true,
+                        mapStyle: {
+                            styleJson: [{
+                                'featureType': 'water',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'land',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#f3f3f3'
+                                }
+                            }, {
+                                'featureType': 'railway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'highway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#fdfdfd'
+                                }
+                            }, {
+                                'featureType': 'highway',
+                                'elementType': 'labels',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'geometry',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'geometry.fill',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'poi',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'green',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'subway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'manmade',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'local',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'labels',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'boundary',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'building',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'label',
+                                'elementType': 'labels.text.fill',
+                                'stylers': {
+                                    'color': '#999999'
+                                }
+                            }]
+                        }
+                    },
+                    series : [
+                        {
+                            type: 'scatter',
+                            coordinateSystem: 'bmap',
+                            data: {},
+                            symbolSize: function (val) {
+                                return val[2] / 10;
+                            },
+                            label: {
+                                normal: {
+                                    formatter: '{b}',
+                                    position: 'right',
+                                    show: false
+                                },
+                                emphasis: {
+                                    show: true
+                                }
+                            },
+                            itemStyle: {
+                                normal: {
+                                    color: '#00AF66'
+                                }
+                            }
+                        },
+                        {
+                            type: 'effectScatter',
+                            coordinateSystem: 'bmap',
+                            data: {},
+                            symbolSize: function (val) {
+                                return val[2] / 10;
+                            },
+                            showEffectOn: 'render',
+                            rippleEffect: {
+                                brushType: 'stroke'
+                            },
+                            hoverAnimation: true,
+                            label: {
+                                normal: {
+                                    formatter: '{b}',
+                                    position: 'right',
+                                    show: false
+                                },
+                                emphasis: {
+                                    show: true
+                                }
+                            },
+                            itemStyle: {
+                                normal: {
+                                    color: '#00AF66',
+                                    shadowBlur: 10,
+                                    shadowColor: '#00AF66'
+                                }
+                            },
+                            zlevel: 1
+                        }
+                    ]
+                },
+                data: [
+                    {city: '北京', total: 79},
+                    {city: '武汉', total: 273},
+                    {city: '大庆', total: 279}
+                ],
+                geoCoordMap: {
+                    '北京': [116.46, 39.92],
+                    '武汉': [114.31, 30.52],
+                    '大庆': [125.03, 46.58]
+                },
+                brandList: 
+                    [
+                        {
+                        "city": "北京",
+                        "brand": "丰田",
+                        "count": 12
+                        },
+                        {
+                        "city": "北京",
+                        "brand": "奔驰",
+                        "count": 13
+                        },
+                        {
+                        "city": "武汉",
+                        "brand": "丰田",
+                        "count": 14
+                        },
+                        {
+                        "city": "大庆",
+                        "brand": "保时捷",
+                        "count": 16
+                        },
+                    ]
+                ,
+            },
+            methods: {
+                changeBrand(val) {
+                    this.brand = val;
+                    this.initDrawData(this.data, this.city, this.brand);
+                    this.initEcharts();
+                },
+                changeCity(val) {
+                    this.city = val;
+                    this.initDrawData(this.data, this.city, this.brand);
+                    this.initEcharts();
+                },
+                onReset() {
+                    this.brand = this.city = '';
+                    this.initDrawData(this.initData)
+                    this.initEcharts();
+                },
+                onNormal() {
+                    this.initEcharts();
+                },
+                // init draw
+                initDrawData(val) {
+                    this.option.series[0].data = this.convertData(val);
+                    this.option.series[1].data = this.convertData(
+                        val.sort(function (a, b) {
+                            return b.value - a.value;
+                        }).slice(0, 6)
+                    )
+                },
+                // Map数据格式化
+                convertData (data, city, brand) {
+                    city = this.city;
+                    brand = this.brand;
+                    let res = [];
+                    data.map((item) => {
+                        // tooltip出发时的内层city和外层name
+                        res.push({
+                            name: item.city,
+                            city: item.city,
+                            value: [...this.geoCoordMap[item.city], item.total],
+                            temp: this.brandList.filter((items) => {
+                                return items.city == item.city
+                            }),
+                        });
+                    })
+                    // 每次查询对参数进行组合判断
+                    if(city == '') {
+                        if (brand != '') {
+                            res = res.filter((item) => {
+                                item.temp = item.temp.filter((items) => {
+                                    return items.brand == brand
+                                })
+                                return item.temp.length > 0
+                            })
+                        }
+                    } else {
+                        res = res.filter((item) => {
+                            return item.city == city
+                        })
+                        if (brand != '') {
+                            res = res.filter((item) => {
+                                item.temp = item.temp.filter((items) => {
+                                    return items.brand == brand
+                                })
+                                return item.temp.length > 0
+                            })
+                        }
+                    }
+                    console.log(res)
+                    return res;
+                },
+                // draw
+                initEcharts() {
+                    if (this.option && typeof this.option === "object") {
+                        this.myChart.clear();
+                        if (this.option.series[0].data && this.option.series[0].data.length == 0) {
+                            this.$message({
+                                type: 'warning',
+                                message: '暂无数据',
+                                duration: 1000,
+                                center: true
+                            });
+                        } else {
+                            this.$message({
+                                type: 'success',
+                                message: '加载成功',
+                                duration: 1000,
+                                center: true
+                            });
+                        }
+                        this.myChart.setOption(this.option, true);
+                    }
+                },
+                // 添加品牌total
+                addBrandToal(arr) {
+                    arr.map((item) => {
+                        item['total'] = 0;
+                    })
+                },
+                // 城市进行去重
+                setCityRepeat(arr, name) {
+                    var hash = {};
+                    return arr.reduce((item, next) => {
+                        hash[next[name]] ? '' : hash[next[name]] = true && item.push(next);
+                        return item;
+                    }, []);
+                },
+                pollAdd(arr, name) {
+                    let res = [];
+                    let tmp = {};
+                    arr.forEach((item) => {
+                        if (!tmp.hasOwnProperty(item[name])) {
+                            tmp[item[name]] = res.length;
+                            console.log(Object.assign({}, item))
+                            return res.push(Object.assign({}, item));
+                        }
+                        res[tmp[item[name]]].count += item.count;
+                        res[tmp[item[name]]].total = res[tmp[item[name]]].count
+                        
+                    });
+                    return res;
+                }
+            },
+            mounted() {
+                this.$nextTick(() => {
+                    this.dom = this.$refs.container;
+                    this.myChart = echarts.init(this.dom);
+                    this.onReset()
+                })
+            },
+            computed: {
+                // 初始化数据
+                initData(){
+                    return JSON.parse(JSON.stringify(this.data));
+                },
+                // initBrand() {
+                //     return JSON.parse(JSON.stringify(this.brandList));
+                // }
+            },
+            created() {
+                this.$nextTick(() => {
+                    // this.addBrandToal(this.brandList);
+
+                    // console.log(this.setCityRepeat(this.brandList, 'city'))
+                    console.log(this.pollAdd(this.brandList, 'city'))
+                })
+            }
+        })
+
+    </script>
+</body>
+</html>
