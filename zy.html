@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html style="height: 100%">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>资源公司分布数据</title>
+    <link href="https://cdn.bootcss.com/element-ui/2.12.0/theme-chalk/index.css" rel="stylesheet">
+</head>
+<style>
+    .BMap_cpyCtrl {
+        display: none;
+    }
+    .anchorBL {
+        display: none;
+    }
+    #container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+    [v-cloak]{
+        display: none;
+    }
+    .piece {
+        position: absolute;
+        right: 20px;
+        top: 20px;
+    }
+    #preloader_1{
+        z-index: 99;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+    }
+    #preloader_1 span{
+        display: block;
+        bottom: 0px;
+        width: 9px;
+        height: 5px;
+        background:#9b59b6;
+        position:absolute;
+        animation: preloader_1 1.5s  infinite ease-in-out;
+    }  
+    .mask-modal {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.5);
+        text-align: center;
+        z-index: 9;
+    }
+</style>
+<body style="height: 100%; margin: 0; position: relative;">
+    <section id="app">
+        <section class="mask-modal" v-if="loading">
+            <img style="margin-top: 7%" src="./images/timg.gif"/>
+        </section>
+        <section ref="container" id="container" style="height: 100%;"></section>
+        <section class="piece" v-if="initData.length > 0">
+            <section>
+                <el-select filterable clearable class="el-sel" v-model="city" placeholder="请选择城市">
+                    <el-option
+                        v-for="item in options2"
+                        :key="item.city"
+                        :label="item.city"
+                        :value="item.city">
+                    </el-option>
+                </el-select>
+            </section>
+            <section style="margin-top: 10px">
+                <el-select filterable class="el-sel" v-model="brand" placeholder="请选择品牌">
+                    <el-option
+                        v-for="item in options1"
+                        :key="item.brand"
+                        :label="item.brand"
+                        :value="item.brand">
+                    </el-option>
+                </el-select>
+            </section>
+            <section style="margin-top: 10px;text-align: right">
+                <div style="margin-bottom: 10px">
+                    <el-button size="small" plain v-cloak @click="onSearch">查询</el-button>
+                </div>
+                <el-button size="small" plain v-cloak @click="onNormal">正常比例</el-button>
+                <el-button size="small" plain v-cloak @click="onReset">重置</el-button>
+            </section>
+        </section>
+    </section>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts-gl/dist/echarts-gl.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts-stat/dist/ecStat.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/extension/dataTool.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/map/js/china.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/map/js/world.js"></script> -->
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=2.0&ak=tM547z9IiOp4KiBfRpP5NxETmNtG8zuV"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/extension/bmap.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bootcss.com/vue/2.6.10/vue.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bootcss.com/element-ui/2.12.0/index.js"></script>
+    <script>
+        // get
+        function ajax(method, url, data, sucess) {
+            var ajax = new XMLHttpRequest();
+            ajax.open(method, url);
+            ajax.setRequestHeader('Content-type', 'application/json');
+            ajax.send();
+            ajax.onreadystatechange = function () {
+                if (ajax.readyState === 4 && ajax.status === 200 || ajax.status===304) {
+                    sucess(ajax.responseText);
+                }
+            }
+        }
+    </script>
+    <script type="text/javascript">
+        const vue = new Vue({
+            el: '#app',
+            data: {
+                city: '', // 当前城市
+                brand: '', // 当前车型
+                dom: '',
+                myChart: '', // 当前echarts对象
+                option: {
+                    title: {
+                        text: '资源公司分布数据',
+                        left: 'center'
+                    },
+                    tooltip : {
+                        trigger: 'item',
+                        formatter: function(params) {
+                            console.log(params)
+                            return  `
+                                <div>${params.data.city}<span style="font-size: 12px;color: #ccc"></div>
+                                <div style="margin-left: 10px">${params.marker}${params.data.brand}：${params.data.count}家</div>
+                            `
+                        }
+                    },
+                    bmap: {
+                        center: [104.114129, 37.550339],
+                        zoom: 5,
+                        maxZoom: 6,
+                        roam: true,
+                        mapStyle: {
+                            styleJson: [{
+                                'featureType': 'water',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'land',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#f3f3f3'
+                                }
+                            }, {
+                                'featureType': 'railway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'highway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#fdfdfd'
+                                }
+                            }, {
+                                'featureType': 'highway',
+                                'elementType': 'labels',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'geometry',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'geometry.fill',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'poi',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'green',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'subway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'manmade',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'local',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'labels',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'boundary',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'building',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'label',
+                                'elementType': 'labels.text.fill',
+                                'stylers': {
+                                    'color': '#999999'
+                                }
+                            }]
+                        }
+                    },
+                    series : [
+                        {
+                            type: 'scatter',
+                            coordinateSystem: 'bmap',
+                            data: {},
+                            symbolSize: function (val) {
+                                return val[2] + 4.5;
+                            },
+                            label: {
+                                normal: {
+                                    formatter: '{b}',
+                                    position: 'right',
+                                    show: false
+                                },
+                                emphasis: {
+                                    show: true
+                                }
+                            },
+                            itemStyle: {
+                                normal: {
+                                    color: '#00AF66',
+                                }
+                            },
+                        },
+                        {
+                            type: 'effectScatter',
+                            coordinateSystem: 'bmap',
+                            data: {},
+                            symbolSize: function (val) {
+                                return val[2] + 3.5;
+                            },
+                            showEffectOn: 'render',
+                            rippleEffect: {
+                                brushType: 'stroke'
+                            },
+                            hoverAnimation: true,
+                            label: {
+                                normal: {
+                                    formatter: '{b}',
+                                    position: 'right',
+                                    show: false
+                                },
+                                emphasis: {
+                                    show: true
+                                }
+                            },
+                            itemStyle: {
+                                normal: {
+                                    color: '#00AF66',
+                                    // shadowBlur: 1,
+                                    // shadowColor: '#00AF66'
+                                }
+                            },
+                            zlevel: 1
+                        }
+                    ]
+                },
+                // geoCoordMap: [],
+                brandList: [],
+                initData: [],
+                options1: [], // 车型数组
+                options2: [], // 城市数组
+                loading: true,
+            },
+            methods: {
+                onSearch() {
+                    this.loading = true;
+                    // 查询时对象initData
+                    setTimeout(() => {
+                        this.initDrawData(this.initData);
+                        this.initEcharts();
+                    }, 0);
+                },
+                onReset() {
+                    this.loading = true;
+                    this.brand = this.options1[0].brand;
+                    this.city = '';
+                    setTimeout(() => {
+                        this.initDrawData(this.initData)
+                        this.initEcharts();
+                    }, 0);
+
+                },
+                onNormal() {
+                    this.loading = true;
+                    setTimeout(() => {
+                        this.initEcharts();
+                    }, 0);
+                },
+                // init draw
+                initDrawData(val) {
+                    this.option.series[0].data = this.queryParams(val);
+                    this.option.series[1].data = this.option.series[0].data.
+                        sort(function (a, b) {
+                        return b.count - a.count;
+                    }).slice(0, 6);
+                    // 当查询条件内的count相差过大时
+                },
+                // query city and brand
+                queryParams(data) {
+                    // 因为品牌必选，因此每次先筛选品牌减少时间复杂度
+                    // 每次查询对参数进行组合判断
+                    let res = [];
+                    city = this.city || '';
+                    brand = this.brand || '';
+                    res = data.filter((item) => {
+                        return item.brand == this.brand;
+                    })
+                    // 对城市进行筛选
+                    if (this.city != '') {
+                        res = res.filter((item) => {
+                            return item.city == this.city
+                        })
+                    }
+                    this.convertData(res)
+                    return res
+                },
+                // *******
+                // 流向 initData => query => covertData => render
+                // Map数据格式化
+                convertData (data) {
+                    let res = [];
+                    res = data.map(item => {
+                        item.value = [item.lng, item.lat, item.count];
+                        return item
+                    })
+                    return res;
+                },
+                // draw
+                initEcharts() {
+                    if (this.option && typeof this.option === "object") {
+                        this.myChart.clear();
+                        if (this.option.series[0].data && this.option.series[0].data.length == 0) {
+                            this.$message({
+                                type: 'warning',
+                                message: '暂无数据',
+                                duration: 1000,
+                                center: true
+                            });
+                        } else {
+                            this.$message({
+                                type: 'success',
+                                message: '加载成功',
+                                duration: 1000,
+                                center: true
+                            });
+                        }
+                        this.myChart.setOption(this.option, true);
+                        this.loading = false;
+                        // 每次loading完后 map的缩放控制 
+                        var bmap = this.myChart.getModel().getComponent('bmap').getBMap();
+                        bmap.setMinZoom(3);
+                        bmap.setMaxZoom(10);
+                    }
+                },
+                // 根据name进行去重
+                setRepeat(arr, name) {
+                    var hash = {};
+                    return arr.reduce((item, next) => {
+                        hash[next[name]] ? '' : hash[next[name]] = true && item.push(next);
+                        return item;
+                    }, []);
+                },
+                // 按首字母a~z排列 js内部方法 兼容性
+                setOrderAZ(res) {
+                    return res.sort((a, b) => a.brand.localeCompare(b.brand, 'zh'))
+                },
+            },
+            mounted() {
+                this.$nextTick(() => {
+                    this.dom = this.$refs.container;
+                    this.myChart = echarts.init(this.dom);
+                    ajax('get', './common/resourceCompany.json', '', (str) => {
+                        this.brandList = JSON.parse(str).data;
+                        this.options1 = this.setOrderAZ(JSON.parse(JSON.stringify(this.setRepeat(this.brandList, 'brand'))));
+                        this.options2 = JSON.parse(JSON.stringify(this.setRepeat(this.brandList, 'city')));
+                        // init数据 不可改变
+                        this.initData = JSON.parse(JSON.stringify(this.brandList));
+                        this.onReset()
+                    }, (error) => {
+                        this.$message({
+                            type: 'warning',
+                            message: error,
+                            duration: 1000,
+                            center: true
+                        });
+                    });
+                })
+            },
+            computed: {
+            },
+            created() {
+                this.$nextTick(() => {
+                // this.$refs['mask-modal'].
+
+                })
+            }
+        })
+
+    </script>
+</body>
+</html>
