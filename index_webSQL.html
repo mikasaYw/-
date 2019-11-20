@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html style="height: 100%">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>品牌分布数据</title>
+    <link href="https://cdn.bootcss.com/element-ui/2.12.0/theme-chalk/index.css" rel="stylesheet">
+</head>
+<style>
+    .BMap_cpyCtrl {
+        display: none;
+    }
+    .anchorBL {
+        display: none;
+    }
+    #container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+    [v-cloak]{
+        display: none;
+    }
+    .piece {
+        position: absolute;
+        right: 20px;
+        top: 20px;
+    }
+    #preloader_1{
+        z-index: 99;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+    }
+    #preloader_1 span{
+        display: block;
+        bottom: 0px;
+        width: 9px;
+        height: 5px;
+        background:#9b59b6;
+        position:absolute;
+        animation: preloader_1 1.5s  infinite ease-in-out;
+    }  
+    .mask-modal {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.5);
+        text-align: center;
+        z-index: 9;
+    }
+    .mask-cont {
+        position: relative;
+        top: 50%;
+        left: 0;
+        right: 0;
+        transform: translateY(-50%);
+    }
+</style>
+<body style="height: 100%; margin: 0; position: relative;">
+    <section id="app">
+        <section class="mask-modal" v-if="loading">
+            <img class="mask-cont" src="./images/timg.gif"/>
+        </section>
+        <section ref="container" id="container" style="height: 100%;"></section>
+        <section class="piece" v-if="compareData.length > 0">
+            <section>
+                <el-select filterable class="el-sel" v-model="brand" placeholder="请选择品牌">
+                    <el-option
+                        v-for="item in options1"
+                        :key="item"
+                        :label="item"
+                        :value="item">
+                    </el-option>
+                </el-select>
+            </section>
+            <section style="margin-top: 10px">
+                    <el-select filterable clearable class="el-sel" v-model="dataType" placeholder="请选择类型">
+                        <el-option
+                            v-for="item in options3"
+                            :key="item"
+                            :label="item"
+                            :value="item">
+                        </el-option>
+                    </el-select>
+                </section>
+            <section style="margin-top: 10px">
+                <el-select filterable clearable class="el-sel" v-model="city" placeholder="请选择城市">
+                    <el-option
+                        v-for="item in options2"
+                        :key="item"
+                        :label="item"
+                        :value="item">
+                    </el-option>
+                </el-select>
+            </section>
+
+            <section style="margin-top: 10px;text-align: right">
+                <div style="margin-bottom: 10px">
+                    <el-button size="small" plain v-cloak @click="onSearch">查询</el-button>
+                </div>
+                <el-button size="small" plain v-cloak @click="onNormal">正常比例</el-button>
+                <el-button size="small" plain v-cloak @click="onReset">重置</el-button>
+            </section>
+        </section>
+    </section>
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
+    <!-- <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts-gl/dist/echarts-gl.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts-stat/dist/ecStat.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/extension/dataTool.min.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/map/js/china.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/map/js/world.js"></script> -->
+    <script type="text/javascript" src="https://api.map.baidu.com/api?v=2.0&ak=tM547z9IiOp4KiBfRpP5NxETmNtG8zuV"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/echarts/dist/extension/bmap.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bootcss.com/vue/2.6.10/vue.min.js"></script>
+    <script type="text/javascript" src="https://cdn.bootcss.com/element-ui/2.12.0/index.js"></script>
+    <script>
+        // get
+        function ajax(method, url, data, sucess) {
+            return new Promise((resolve, reject) => {
+                var ajax = new XMLHttpRequest();
+                ajax.open(method, url);
+                ajax.setRequestHeader('Content-type', 'application/json');
+                ajax.send();
+                ajax.onreadystatechange = function () {
+                    if (ajax.readyState === 4 && ajax.status === 200 || ajax.status===304) {
+                        resolve(JSON.parse(ajax.responseText).data);
+                    }
+                }
+            });
+        }
+        // function ajax(method, url, data, sucess) {
+        //     var ajax = new XMLHttpRequest();
+        //     ajax.open(method, url);
+        //     ajax.setRequestHeader('Content-type', 'application/json');
+        //     ajax.send();
+        //     ajax.onreadystatechange = function () {
+        //         if (ajax.readyState === 4 && ajax.status === 200 || ajax.status===304) {
+        //             sucess(ajax.responseText);
+        //         }
+        //     }
+        // }
+    </script>
+    <script type="text/javascript">
+        const vue = new Vue({
+            el: '#app',
+            data: {
+                city: '', // 城市
+                brand: '', // 车型
+                dataType: '', // 数据类型   1: 4S店（合作） 2: 资源公司  3: 综合展厅  4: 4S店（未合作）
+                options1: [], // 车型数组
+                options2: [], // 城市数组
+                options3: ['资源公司', '综合展厅', '4S店（合作）', '4S店（未合作）'], // 类型
+                dom: '',
+                myChart: '', // echarts对象
+                allTotal: 0, // 总计
+                option: {
+                    title: {
+                        text: '品牌分布数据',
+                        subtext: '副标题',
+                        left: 'center'
+                    },
+                    tooltip : {
+                        trigger: 'item',
+                        formatter: function(params) {
+                            return  `
+                                <div>${params.data.city}
+                                    <span style="font-size: 12px;color: #ccc;margin-left: 3px">
+                                        （${params.data.brand}）
+                                    </span>
+                                </div>
+                                ${ params.data.isShow ? '' : '<div style="font-size: 12px;color: #ccc;margin-left: 7px">总：' + params.data.total + ' 家</div>' }
+                                ${ params.data.isShow == 2 || !params.data.isShow ? '<div style="margin-left: 10px">'+params.marker+'资源公司：'+ (params.data.dataType['2'] || 0) +' 家</div>' : '' }
+                                ${ params.data.isShow == 3 || !params.data.isShow ? '<div style="margin-left: 10px">'+params.marker+'综合展厅：'+ (params.data.dataType['3'] || 0) +' 家</div>' : '' }
+                                ${ params.data.isShow == 1 || !params.data.isShow ? '<div style="margin-left: 10px">'+params.marker+'4S店（合作）：'+ (params.data.dataType['1'] || 0) +' 家</div>' : '' }
+                                ${ params.data.isShow == 4 || !params.data.isShow ? '<div style="margin-left: 10px">'+params.marker+'<span>4S店（未合作）：</span>'+ (params.data.dataType['4'] || 0) +' 家</div>' : '' }
+                            `
+                        }
+                    },
+                    bmap: {
+                        center: [104.114129, 37.550339],
+                        zoom: 5,
+                        maxZoom: 6,
+                        roam: true,
+                        mapStyle: {
+                            styleJson: [{
+                                'featureType': 'water',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'land',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#f3f3f3'
+                                }
+                            }, {
+                                'featureType': 'railway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'highway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#fdfdfd'
+                                }
+                            }, {
+                                'featureType': 'highway',
+                                'elementType': 'labels',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'geometry',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'geometry.fill',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'poi',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'green',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'subway',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'manmade',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'local',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'arterial',
+                                'elementType': 'labels',
+                                'stylers': {
+                                    'visibility': 'off'
+                                }
+                            }, {
+                                'featureType': 'boundary',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#fefefe'
+                                }
+                            }, {
+                                'featureType': 'building',
+                                'elementType': 'all',
+                                'stylers': {
+                                    'color': '#d1d1d1'
+                                }
+                            }, {
+                                'featureType': 'label',
+                                'elementType': 'labels.text.fill',
+                                'stylers': {
+                                    'color': '#999999'
+                                }
+                            }]
+                        }
+                    },
+                    series : [
+                        {
+                            type: 'scatter',
+                            coordinateSystem: 'bmap',
+                            data: {},
+                            symbolSize: function (val, e) {
+                                let temp = e.data.total/3.5;
+                                return 3 + temp
+                            },
+                            label: {
+                                normal: {
+                                    formatter: '{b}',
+                                    position: 'right',
+                                    show: false
+                                },
+                                emphasis: {
+                                    show: true
+                                }
+                            },
+                            itemStyle: {
+                                normal: {
+                                    color: '#00AF66',
+                                }
+                            },
+                        },
+                        {
+                            type: 'effectScatter',
+                            coordinateSystem: 'bmap',
+                            data: {},
+                            symbolSize: function (val, e) {
+                                let temp = e.data.total/3.5;
+                                return 3 + temp
+                            },
+                            showEffectOn: 'render',
+                            rippleEffect: {
+                                brushType: 'stroke'
+                            },
+                            hoverAnimation: true,
+                            label: {
+                                normal: {
+                                    formatter: '{b}',
+                                    position: 'right',
+                                    show: false
+                                },
+                                emphasis: {
+                                    show: true
+                                }
+                            },
+                            itemStyle: {
+                                normal: {
+                                    color: '#00AF66',
+                                    // shadowBlur: 1,
+                                    // shadowColor: '#00AF66'
+                                }
+                            },
+                            zlevel: 1
+                        }
+                    ]
+                },
+                // geoCoordMap: [],
+                brandList: [],
+                initData: [],
+                loading: true,
+                compareData: [],
+            },
+            methods: {
+                onSearch() {
+                    this.loading = true;
+                    // 查询时对象initData
+                    this.queryParams();
+                },
+                onReset() {
+                    this.loading = true;
+                    this.brand = '大众';
+                    this.city = '';
+                    this.dataType = '';
+                    this.queryParams()
+                },
+                onNormal() {
+                    this.loading = true;
+                    setTimeout(() => {
+                        this.initEcharts();
+                    }, 0);
+                },
+                // dataType查询
+                queryParams() {
+                    switch(this.dataType){
+                        case '4S店（合作）':
+                            this.queryData(1)
+                            break;
+                        case '资源公司':
+                            this.queryData(2)
+                            break;
+                        case '综合展厅':
+                            this.queryData(3)
+                            break;
+                        case '4S店（未合作）':
+                            this.queryData(4)
+                            break;
+                        default: 
+                            this.queryData()
+                    }
+                },
+                // city dataType 查询
+                queryData(val = 0) {
+                    this.db.readTransaction(tr => {
+                        let sql = '',
+                            totalSql = '';
+                        if (this.city && val) {
+                            sql = `select * from company where dataType=${val} and city='${this.city}' and brand='${this.brand}'`
+                            totalSql = `select sum(count) as total from company where dataType=${val} and city='${this.city}' and brand='${this.brand}'`
+                        } else if (this.city) {
+                            sql = `select * from company where city='${this.city}' and brand='${this.brand}'`
+                            totalSql = `select sum(count) as total from company where city='${this.city}' and brand='${this.brand}'`
+                        } else if (val) {
+                            sql = `select * from company where dataType=${val} and brand='${this.brand}'`
+                            totalSql = `select sum(count) as total from company where dataType=${val} and brand='${this.brand}'`
+                        } else {
+                            sql = `select * from company where brand='${this.brand}'`
+                            totalSql = `select sum(count) as total from company where brand='${this.brand}'`
+                        }
+
+                        tr.executeSql(totalSql, [], (tr, result) => {
+                            this.allTotal = result.rows.item(0).total || 0
+                        })
+
+                        tr.executeSql(sql, [], (tr, result) => {
+                            let res = [];
+                            for(let i = 0; i < result.rows.length; i++) {
+                                res.push(result.rows.item(i))
+                            }
+                            this.convertData(res, val)
+                        })
+                    })
+                },
+                // 数据格式化
+                convertData(data, val) {
+                    let res = [],
+                        temp = [];
+                    temp = JSON.parse(JSON.stringify(this.compareData));
+                    temp.map(item => {
+                        data.map(items =>{
+                            if(item.city === items.city) {
+                                item.dataType = item.dataType ? item.dataType : {};
+                                item.dataType[items.dataType] = items.count;
+                                item.total = (item.dataType['1'] || 0) + (item.dataType['2'] || 0) + (item.dataType['3'] || 0) + (item.dataType['4'] || 0);
+                                item.brand = this.brand;
+                                item.isShow = val;
+                                item.value = [item.lng, item.lat];
+                                res.push(item)
+                            }
+                        })
+                    })
+                    // ***
+                    // 合数据后的 data 以city维度去重 减少重复渲染
+                    this.initDrawData(this.setRepeat(res, 'city'))
+                },
+                // init draw
+                initDrawData(val) {
+                    this.option.series[0].data = val;
+                    this.option.series[1].data = this.option.series[0].data.
+                        sort(function (a, b) {
+                            return b.total - a.total;
+                        }).slice(0, 8);
+                    setTimeout(() => {
+                        this.initEcharts();
+                    }, 0);
+                },
+                // draw
+                initEcharts() {
+                    if (this.option && typeof this.option === "object") {
+                        this.myChart.clear();
+                        this.option.title.subtext = `总：${parseInt(this.allTotal).toLocaleString()} 家`
+                        if (this.option.series[0].data && this.option.series[0].data.length == 0) {
+                            this.$message({
+                                type: 'warning',
+                                message: '暂无数据',
+                                duration: 1000,
+                                center: true
+                            });
+                        } else {
+                            this.$message({
+                                type: 'success',
+                                message: '加载成功',
+                                duration: 1000,
+                                center: true
+                            });
+                        }
+                        this.myChart.setOption(this.option, true);
+                        this.loading = false;
+                        // 每次loading完后 map的缩放控制 
+                        var bmap = this.myChart.getModel().getComponent('bmap').getBMap();
+                        bmap.setMinZoom(3);
+                        bmap.setMaxZoom(10);
+                    }
+                },
+                // 根据name进行去重
+                setRepeat(arr, name) {
+                    var hash = {};
+                    return arr.reduce((item, next) => {
+                        hash[next[name]] ? '' : hash[next[name]] = true && item.push(next);
+                        return item;
+                    }, []);
+                },
+            },
+            mounted() {
+                // 数据流程
+                // 合数据 => query查询 => 转化为echars所需格式 => 去重复 => draw
+                this.$nextTick(() => {
+                    this.dom = this.$refs.container;
+                    this.myChart = echarts.init(this.dom);
+                    let p1 = ajax('get', './common/4s.json');
+                    let p2 = ajax('get', './common/resourceCompany.json');
+                    let p3 = ajax('get', './common/exhibitionHall.json');
+                    let p4 = ajax('get', './common/4s_not.json');
+                    Promise.all([p1, p2, p3, p4]).then((result) => {
+                        result[0] = result[0].map(item => {
+                            item.dataType = 1
+                            return item 
+                        })
+                        result[1] = result[1].map(item => {
+                            item.dataType = 2
+                            return item 
+                        })
+                        result[2] = result[2].map(item => {
+                            item.dataType = 3
+                            return item 
+                        })
+                        result[3] = result[3].map(item => {
+                            item.dataType = 4
+                            return item 
+                        })
+                        let allData = [...result[0], ...result[1], ...result[2], ...result[3]]
+                        
+                        this.db = window.openDatabase('brand_db', '1.0.0', 'brand_db', 20 * 1024 * 1024);
+                        this.db.transaction(tr => {
+                            tr.executeSql("drop table company", [], (tr, result) => {
+                                // console.log(tr)
+                            })
+                        });
+                        // 总表数据筛选查询条件
+                        this.db.transaction(tr => {
+                            tr.executeSql('create table company(province, city, brand, count, lng, lat, dataType)')                            
+                            allData.forEach(item => {tr.executeSql('insert into company values(?, ?, ?, ?, ?, ?, ?)', [item.province, item.city, item.brand, item.count, item.lng, item.lat, item.dataType])})
+                        })
+                        // 筛选
+                        this.db.readTransaction(tr => {
+                            // 筛选 brand
+                            tr.executeSql('select distinct(brand) from company', [], (tr, res) => {
+                                for(let i = 0; i < res.rows.length; i++) {
+                                    this.options1.push(res.rows.item(i).brand)
+                                }
+                                // 按首字母a~z排列 js内部方法 兼容性
+                                this.options1.sort((a, b) => a.localeCompare(b, 'zh'))
+                            })
+                            // 筛选 city 
+                            // 基础对比data
+                            tr.executeSql('Select Distinct city, lng, lat From company', [], (tr, res) => {
+                                // this.compareData = Array.from(res.rows);
+                                for(let i = 0; i < res.rows.length; i++) {
+                                    this.compareData.push(res.rows.item(i))
+                                    this.options2.push(res.rows.item(i).city)
+                                }
+                            })
+                            // tr.executeSql('Select Distinct city,brand,lng,lat From company', [], (tr, res) => {
+                            //     this.compareData = Array.from(res.rows);
+                            // })
+
+                        })
+
+                        this.onReset();
+                    }).catch((error) => {
+                        this.$message({
+                            type: 'warning',
+                            message: '接口请求失败',
+                            duration: 1000,
+                            center: true
+                        });
+                    }) 
+                })
+            },
+            computed: {
+            },
+            created() {
+                this.$nextTick(() => {
+                // this.$refs['mask-modal'].
+                })
+            }
+        })
+
+    </script>
+</body>
+</html>
